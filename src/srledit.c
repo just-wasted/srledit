@@ -1,5 +1,6 @@
 // srled, simplereadline editor
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -10,6 +11,7 @@
 // most terminal emulators map physical backspace key to ASCII Del
 #define KEY_DELETE 127
 #define KEY_BACKSPACE 8
+#define KEY_INSERT
 
 typedef struct string_t
 {
@@ -43,6 +45,8 @@ int main()
     // apply the new settings
     tcsetattr(STDIN_FILENO, TCSANOW, &stream_state_input);
 
+    printf(">>> ");
+
     do
     {
         received_char = getchar();
@@ -53,12 +57,22 @@ int main()
 
         if (received_char == KEY_DELETE)
         {
-            remove_char(&input_line);
+            if (remove_char(&input_line) == EXIT_FAILURE)
+            {
+                continue;
+            }
 
             // NOTE: temporary echoing
             fputc(KEY_BACKSPACE, stdout);
             fputc(' ', stdout);
             fputc(KEY_BACKSPACE, stdout);
+
+            continue;
+        }
+
+        // if the char is not printable, do nothing with it
+        if (!isprint(received_char))
+        {
             continue;
         }
 
@@ -97,7 +111,7 @@ int insert_char(string_t *buffer, int in_char)
 {
     if (buffer->len >= INPUT_BUFFER_SIZE)
     {
-        return EXIT_FAILURE;
+        return EXIT_FAILURE; // do nothing if the buffer is full
     }
     buffer->str[buffer->cursor_pos + 1] = '\0';
     buffer->str[buffer->cursor_pos] = (char)in_char;
@@ -113,7 +127,7 @@ int remove_char(string_t *buffer)
 {
     if (buffer->len <= 1)
     {
-        return EXIT_SUCCESS; // do nothing of there is no string data to remove
+        return EXIT_FAILURE; // do nothing of there is no string data to remove
     }
 
     // check if cursor is at the end of the string
