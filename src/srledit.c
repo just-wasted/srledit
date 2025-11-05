@@ -1,90 +1,129 @@
-// sled, simple line editor
+// srled, simplereadline editor
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <termios.h>
+#include <unistd.h>
 
 #define INPUT_BUFFER_SIZE 1024
 
-typedef struct string_t {
-	char str[INPUT_BUFFER_SIZE]; // string data
-	unsigned int len; // the length of data including null terminator
-	unsigned int cursor_pos; // index in str of cursor position
-}string_t;
+// most terminal emulators map physical backspace key to ASCII Del
+#define KEY_DELETE 127
+#define KEY_BACKSPACE 8
 
-static const char *keywords[] = {"calc", "prog", "conv"};
+typedef struct string_t
+{
+    char str[INPUT_BUFFER_SIZE]; // string data
+    unsigned int len; // the length of data including null terminator
+    unsigned int cursor_pos; // index in str of cursor position
+} string_t;
+
+// static const char *keywords[] = {"calc", "prog", "conv"};
 
 string_t initialize_string();
-int append_string(string_t *buffer, unsigned char in_char);
+int insert_char(string_t *buffer, int in_char);
+int remove_char(string_t *buffer);
 
 int main()
 {
-	struct termios stream_state_input;
-	struct termios stram_state_input;
+    struct termios stream_state_default;
+    struct termios stream_state_input;
 
-	string_t input_line = initialize_string(); //input buffer
+    string_t input_line = initialize_string(); // input buffer
 
-	unsigned char in_char;
-	int received_char;
+    int received_char;
 
-	// get the terminal state of stdin
-	tcgetattr(STDIN_FILENO, &stream_state_input);
-	stram_state_input=stream_state_input;
+    // get the terminal state of stdin
+    tcgetattr(STDIN_FILENO, &stream_state_default);
+    stream_state_input = stream_state_default;
 
-	// disable canonical mode (buffered i/o) and local echo
-	stram_state_input.c_lflag &= (~ICANON & ~ECHO);
+    // disable canonical mode (buffered i/o) and local echo
+    stream_state_input.c_lflag &= (~ICANON & ~ECHO);
 
-	// apply the new settings
-	tcsetattr(STDIN_FILENO, TCSANOW, &stram_state_input);
+    // apply the new settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &stream_state_input);
 
-	do
-	{
-		received_char = getchar();
-		if (received_char == EOF)
-		{
-			return EXIT_FAILURE;
-		}
-		in_char = (unsigned char) received_char;
+    do
+    {
+        received_char = getchar();
+        if (received_char == EOF)
+        {
+            return EXIT_FAILURE;
+        }
 
+        if (received_char == KEY_DELETE)
+        {
+            remove_char(&input_line);
 
-		if (append_string(&input_line, in_char) == EXIT_SUCCESS)
-		{
-			fputc(in_char, stdout);
-		} else {
-			// do shit of buffer is full
-		}
+            // NOTE: temporary echoing
+            fputc(KEY_BACKSPACE, stdout);
+            fputc(' ', stdout);
+            fputc(KEY_BACKSPACE, stdout);
+            continue;
+        }
 
-		// printf("%c", in_char);
-	} while(in_char != '\n');
+        if (insert_char(&input_line, received_char) == EXIT_SUCCESS)
+        {
+            // TODO: parsing for keyword highlighting
+            // NOTE: temporary echoing
+            fputc(received_char, stdout);
+        }
+        else
+        {
+            // FIXME: do stuff if buffer is full
+        }
+    } while (received_char != '\n');
 
-	// restore terminal state
-	tcsetattr(STDIN_FILENO, TCSANOW, &stream_state_input);
+    // restore terminal state
+    tcsetattr(STDIN_FILENO, TCSANOW, &stream_state_default);
 
-	printf("%s\n", input_line.str);
-	return EXIT_SUCCESS;
+    printf("%s\n", input_line.str);
+    return EXIT_SUCCESS;
 }
 
+// TODO: use malloc
 string_t initialize_string()
 {
-	string_t new;
-	new.cursor_pos = 0;
-	new.len = 1;
-	new.str[0] = '\0';
-	return new;
+    string_t new;
+    new.cursor_pos = 0;
+    new.len = 1;
+    new.str[0] = '\0';
+    return new;
 }
 
 // receives buffer and char to append.
-// returns 1 if buffer is full, apends null terminator
-int append_string(string_t *buffer, unsigned char in_char)
+// returns 1 if buffer is full, apends null terminator.
+int insert_char(string_t *buffer, int in_char)
 {
-	if (buffer->len >= INPUT_BUFFER_SIZE)
-	{
-		return EXIT_FAILURE;
-	}
-	buffer->str[buffer->cursor_pos] = in_char;
-	buffer->str[buffer->cursor_pos + 1] = '\0';
-	buffer->cursor_pos++;
-	buffer->len++;
-	return EXIT_SUCCESS;
+    if (buffer->len >= INPUT_BUFFER_SIZE)
+    {
+        return EXIT_FAILURE;
+    }
+    buffer->str[buffer->cursor_pos + 1] = '\0';
+    buffer->str[buffer->cursor_pos] = (char)in_char;
+    buffer->cursor_pos++;
+    buffer->len++;
+    return EXIT_SUCCESS;
+
+    // TODO: check if cursor is not at \0 and shift buffer contents accordingly
+}
+
+// receives a buffer and removes the char before current cursor position
+int remove_char(string_t *buffer)
+{
+    if (buffer->len <= 1)
+    {
+        return EXIT_SUCCESS; // do nothing of there is no string data to remove
+    }
+
+    // check if cursor is at the end of the string
+    if (buffer->str[buffer->cursor_pos] == '\0')
+    {
+        buffer->str[buffer->cursor_pos - 1] = '\0';
+        buffer->str[buffer->cursor_pos] = ' ';
+        buffer->cursor_pos--;
+        buffer->len--;
+    }
+    // TODO: check if cursor is not at \0 and shift buffer contents accordingly
+    return EXIT_SUCCESS;
 }

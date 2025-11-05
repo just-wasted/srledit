@@ -3,11 +3,11 @@ CFLAGS = -Wall -Wextra -Werror -g -O0 -lreadline
 SRC_DIR = src
 BUILD_DIR = build-debug
 
-SRCS := $(SRC_DIR)/scalc.c
+SRCS := $(SRC_DIR)/srledit.c
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 DEPENDS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.d)
 
-OUT_FILE = scalc
+OUT_FILE = srledit
 
 all: $(BUILD_DIR)/$(OUT_FILE)
 
